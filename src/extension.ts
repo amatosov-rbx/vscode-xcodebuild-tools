@@ -108,7 +108,7 @@ class Extension
     private runOutputChannel = 
         vscode.window.createOutputChannel("xcodebuild-tools run");
 
-    private config : Configuration = null;
+    private allConfigs : Configuration[] = [];
 
     private addDisposable(d: vscode.Disposable) : void
     {
@@ -124,6 +124,7 @@ class Extension
             'profile',
             'run', 
             'kill', 
+            'selectConfiguration', 
             'selectBuildConfiguration', 
             'selectDebugConfiguration',
             "openXcode"
@@ -175,27 +176,44 @@ class Extension
     {
         try
         {
-            let config = await util.readJSON(fileName, this.validateConfig);
+            let configFromJson = await util.readJSON(fileName, this.validateConfig);
 
-            if( config.variables )
+            if (Array.isArray(configFromJson))
             {
-                config.variables = new Map<string, string>(util.entries(config.variables));
+                let configs: Configuration[] = []
+                for (let config of configFromJson) {
+                    configs.push(this.processConfig(config))  ;
+                }
+                this.allConfigs = configs;
             }
-
-            if( config.env )
+            else
             {
-                config.env = new Map<string, string>(util.entries(config.env));
+                this.allConfigs = [this.processConfig(configFromJson)];
             }
-
-            this.config = util.merge(DefaultConfiguration, config);
         }
         catch(e)
         {
-            this.config = null;
+            this.allConfigs = [];
+
             vscode.window.showErrorMessage(`[xcodebuild-tools]: ${e.message}`);
         }
 
         this.updateStatus();
+    }
+
+    private processConfig(config: Configuration)
+    {
+        if( config.variables )
+        {
+            config.variables = new Map<string, string>(util.entries(config.variables));
+        }
+
+        if( config.env )
+        {
+            config.env = new Map<string, string>(util.entries(config.env));
+        }
+
+        return util.merge(DefaultConfiguration, config);
     }
 
     private getState<T>(
@@ -214,10 +232,59 @@ class Extension
         return val;
     }
 
+    get activeConfigIndex() : number
+    {
+        return this.getState<number>(
+            "activeConfigIndex", 
+            (val:number) => val >= 0 && val < this.allConfigs.length,
+            (_:string) => 0
+        );
+    }
+
+    set activeConfigIndex(configIndex: number)
+    {
+        this.context.workspaceState.update("activeConfigIndex", configIndex);
+        this.updateStatus();
+    }
+
+    get config() : Configuration
+    {
+        if (this.activeConfigIndex >= 0 && this.activeConfigIndex < this.allConfigs.length)
+        {
+            return this.allConfigs[this.activeConfigIndex];
+        }
+        return null;
+    }
+
+    get activeConfigName() : string
+    {
+        return this.configurationName(this.config) || "Not configured"
+    }
+
+    get configurationNames() : string[]
+    {
+        return this.allConfigs.map((config) => this.configurationName(config));
+    }
+
+    private configurationName(config: Configuration) : string
+    {
+        if (config)
+        {
+            let e = this.configExpander(config)
+            return e.expand(path.basename(config.workspace, ".xcworkspace") + " | " + config.scheme)
+        }
+        return null
+    }
+
     get buildConfig() : string
     {
+        return this.buildConfigFor(this.activeConfigName)
+    }
+
+    private buildConfigFor(configName: string) : string
+    {
         return this.getState<string>(
-            "buildConfig", 
+            this.buildConfigKey(configName), 
             (val:string) => BuildConfigurations.indexOf(val)!==-1, 
             (key:string) => BuildConfigurations[0]
         );
@@ -225,23 +292,33 @@ class Extension
 
     set buildConfig(config: string)
     {
-        this.context.workspaceState.update("buildConfig", config);
+        this.context.workspaceState.update(this.buildConfigKey(), config);
         this.updateStatus();
+    }
+    
+    private buildConfigKey(configName = this.activeConfigName) : string
+    {
+        return "buildConfig" + configName
     }
 
     get debugConfigName() : string
     {
         return this.getState<string>(
-            "debugConfig", 
-            (val:string) => true, 
+            this.debugConfigNameKey, 
+            (val:string) => this.config.debugConfigurations.find( dc => dc.name===val ) !== undefined, 
             (key:string) => this.config.debugConfigurations.length > 0 ? this.config.debugConfigurations[0].name : null
         );
     }
 
     set debugConfigName(config: string)
     {
-        this.context.workspaceState.update("debugConfig", config);
+        this.context.workspaceState.update(this.debugConfigNameKey, config);
         this.updateStatus();
+    }
+    
+    get debugConfigNameKey() : string
+    {
+        return "debugConfig" + this.activeConfigName
     }
 
     get debugConfig() : TaskConfiguration
@@ -254,7 +331,8 @@ class Extension
     {
         if( this.config )
         {
-            this.statusBar.update(this.buildConfig, this.debugConfigName);
+            let e = this.expander();
+            this.statusBar.update(this.activeConfigName, e.expand(this.buildConfig), e.expand(this.debugConfigName));
         }
         else
         {
@@ -262,21 +340,36 @@ class Extension
         }        
     }
 
-    private expander() : expander.Expander
+    private expander(config : Configuration = this.config) : expander.Expander
+    {
+        const M = this.configExpanderMap(config);
+
+        M.set('buildConfig', this.buildConfigFor(this.configurationName(config)));
+
+        return new expander.Expander(M);
+    }
+
+    private configExpander(config : Configuration) : expander.Expander
+    {
+        const M = this.configExpanderMap(config);
+
+        return new expander.Expander(M);
+    }
+
+    private configExpanderMap(config : Configuration):  Map<string, string>
     {
         const M = new Map<string, string>();
 
         M.set('workspaceRoot', vscode.workspace.rootPath);
         M.set('buildRoot', '${workspaceRoot}/build');
-        M.set('buildConfig', this.buildConfig);
         M.set('buildPath', '${buildRoot}/${buildConfig}');
 
-        for( let [v, val] of this.config.variables )
+        for( let [v, val] of config.variables )
         {
             M.set(v, val);
         }
 
-        return new expander.Expander(M);
+        return M
     }
 
     private buildState : BuildState = BuildState.IDLE;
@@ -534,6 +627,24 @@ class Extension
         }
     }
 
+    public async selectConfiguration()
+    {
+        let configNames: vscode.QuickPickItem[] = this.allConfigs.map((config: Configuration, index: number) => {
+            let e = this.configExpander(config)
+            let workspacePath = path.relative(vscode.workspace.rootPath, e.expand(config.workspace))
+            return {
+                label: e.expand(config.scheme),
+                description: workspacePath + (index == this.activeConfigIndex ? " (active)" : "")
+            }
+        });
+        let choice = await vscode.window.showQuickPick(configNames);
+        
+        if( choice )
+        {
+            this.activeConfigIndex = configNames.indexOf(choice)
+        }
+    }
+
     public async selectBuildConfiguration()
     {
         let choice = await vscode.window.showQuickPick(BuildConfigurations);
@@ -546,7 +657,8 @@ class Extension
 
     public async selectDebugConfiguration()
     {
-        let items = this.config.debugConfigurations.map( dc => dc.name );
+        let e = this.expander()
+        let items = this.config.debugConfigurations.map( dc => e.expand(dc.name) );
 
         if ( items.length > 0 )
         {

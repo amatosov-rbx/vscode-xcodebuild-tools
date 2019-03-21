@@ -32,6 +32,7 @@
 		"onCommand:xcodebuild-tools.profile",
 		"onCommand:xcodebuild-tools.run",
 		"onCommand:xcodebuild-tools.kill",
+		"onCommand:xcodebuild-tools.selectConfiguration",
 		"onCommand:xcodebuild-tools.selectBuildConfiguration",
 		"onCommand:xcodebuild-tools.selectDebugConfiguration",
 		"onCommand:xcodebuild-tools.openXcode",
@@ -81,6 +82,11 @@
 				"category": "Xcodebuild-tools"
 			},
 			{
+				"command": "xcodebuild-tools.selectConfiguration",
+				"title": "Select Configuration",
+				"category": "Xcodebuild-tools"
+			},
+			{
 				"command": "xcodebuild-tools.openXcode",
 				"title": "Open Xcode",
 				"category": "Xcodebuild-tools"
@@ -115,7 +121,7 @@
 	},
 	"devDependencies": {
 		"@types/mocha": "^2.2.41",
-		"@types/node": "^8.0.15",
+		"@types/node": "^8.10.42",
 		"mocha": "^3.4.2",
 		"typescript": "^2.4.2",
 		"vscode": "^1.1.10"

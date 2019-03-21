@@ -6,6 +6,9 @@ export class StatusBar
     private buildStatusItem =
         vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 5.04);
 
+        private configStatusItem =
+        vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 5.035);
+
     private buildConfigStatusItem =
         vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 5.03);
 
@@ -14,6 +17,7 @@ export class StatusBar
 
     private runStatusItem =
         vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 5.02);
+
 
     private debugConfigStatusItem =
         vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 5.01);
@@ -38,6 +42,9 @@ export class StatusBar
         this.runStatusItem.tooltip = "Click to run (without debugging) the selected debug configuration";
         this.runStatusItem.text = "$(triangle-right)";
 
+        this.configStatusItem.command = "xcodebuild-tools.selectConfiguration";
+        this.configStatusItem.tooltip = "Click to select the workspace and scheme";
+
         this.debugConfigStatusItem.command = "xcodebuild-tools.selectDebugConfiguration";
         this.debugConfigStatusItem.tooltip = "Click to select the debug configuration";
 
@@ -52,6 +59,7 @@ export class StatusBar
         f(this.buildConfigStatusItem);
         f(this.debugStatusItem);
         f(this.runStatusItem);
+        f(this.configStatusItem);
         f(this.debugConfigStatusItem);
         f(this.killStatusItem);
     }
@@ -71,8 +79,9 @@ export class StatusBar
         this.forallItems(i => i.hide());
     }
 
-    public update(buildConfig: string, debugConfig:string)
+    public update(config: string, buildConfig: string, debugConfig:string)
     {
+        this.configStatusItem.text = config;
         this.buildConfigStatusItem.text = buildConfig;
         this.debugConfigStatusItem.text = debugConfig;
 

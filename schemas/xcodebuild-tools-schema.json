@@ -23,9 +23,7 @@
             },
             "required": [
                 "name",
-                "program",
-                "args",
-                "cwd"
+                "program"
             ]
         },
         "variables": {
@@ -49,44 +47,60 @@
             "items": { 
                 "$ref": "#/definitions/task" 
             }
-        }
-    },
+        },
+        "configuration": {
+            "type": "object",
+            "properties": {
+                "sdk": {
+                    "type": "string",
+                    "description": "name or path of the base SDK"
+                },
+                "workspace": {
+                    "type": "string",
+                    "description": "path to Xcode workspace"
+                },
+                "scheme": {
+                    "type": "string",
+                    "description": "name of Xcode scheme"
+                },
+                "preBuildTasks": { 
+                    "$ref": "#/definitions/tasks" 
+                },        
+                "postBuildTasks": { 
+                    "$ref": "#/definitions/tasks" 
+                },
+                "debugConfigurations": { 
+                    "$ref": "#/definitions/tasks" 
+                },
+                "variables": {
+                    "$ref": "#/definitions/variables"
+                },
+                "env": {
+                    "$ref": "#/definitions/variables"
+                },
+                "args": {
+                    "$ref": "#/definitions/args"
+                }
+            },
 
-    "type": "object",
-    "properties": {
-        "sdk": {
-            "type": "string",
-            "description": "name or path of the base SDK"
+            "required": [
+                "workspace",
+                "scheme"
+            ]
         },
-        "workspace": {
-            "type": "string",
-            "description": "path to Xcode workspace"
-        },
-        "scheme": {
-            "type": "string",
-            "description": "name of Xcode scheme"
-        },
-        "preBuildTasks": { 
-            "$ref": "#/definitions/tasks" 
-        },        
-        "postBuildTasks": { 
-            "$ref": "#/definitions/tasks" 
-        },
-        "debugConfigurations": { 
-            "$ref": "#/definitions/tasks" 
-        },
-        "variables": {
-            "$ref": "#/definitions/variables"
-        },
-        "env": {
-            "$ref": "#/definitions/variables"
-        },
-        "args": {
-            "$ref": "#/definitions/args"
+        "configurationsArray": {
+            "type": "array",
+            "items": { 
+                "$ref": "#/definitions/configuration" 
+            }
         }
     },
-    "required": [
-        "workspace",
-        "scheme"
+    "oneOf": [
+        {
+            "$ref": "#/definitions/configuration"
+        },
+        {
+            "$ref": "#/definitions/configurationsArray"
+        }
     ]
 }
